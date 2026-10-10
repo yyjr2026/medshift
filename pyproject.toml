@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medshift"
+version = "0.1.0"
+description = "医技科室排班器：用声明式配置描述人员、班次与岗位，校验并导出周排班表"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "medshift contributors" }]
+keywords = ["scheduling", "roster", "radiology", "hospital", "shift"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Scheduling",
+]
+dependencies = [
+    "pydantic>=2.5",
+    "PyYAML>=6.0",
+    "openpyxl>=3.1",
+    "typer>=0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+solver = [
+    "ortools>=9.8",
+]
+gui = [
+    "flask>=3.0",
+]
+packaging = [
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+medshift = "medshift.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/medshift"
+Documentation = "https://github.com/your-org/medshift/tree/main/docs"
+Issues = "https://github.com/your-org/medshift/issues"
+
+[tool.setuptools.packages.find]
+include = ["medshift*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["medshift"]

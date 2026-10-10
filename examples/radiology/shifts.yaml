@@ -1,0 +1,136 @@
+# 班次字典。被 positions.yaml 与排班数据引用。
+# kind 取值：day / night / evening / post_night / backup / off / other
+# end 以 "+1" 结尾表示跨夜到次日。
+shifts:
+  - code: DAY
+    name: 正班
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+
+  - code: CT_DIAG
+    name: CT诊断
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: D9E1F2
+
+  - code: DR_DIAG
+    name: DR诊断
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: E2EFDA
+
+  - code: MR_DIAG
+    name: MR诊断
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: FCE4D6
+
+  - code: REVIEW_CT
+    name: 审CT
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.2
+    color: FFF2CC
+
+  - code: CT1_SCAN
+    name: CT1扫描
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: DDEBF7
+
+  - code: CT2_SCAN
+    name: CT2扫描
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: DDEBF7
+
+  - code: MR_SCAN
+    name: MR扫描
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: FBE5D6
+
+  - code: DR_RADIOGRAPH
+    name: DR投照
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: E2EFDA
+
+  - code: REGISTER
+    name: 登记
+    kind: day
+    start: "08:00"
+    end: "17:30"
+    weight: 1.0
+    color: EDEDED
+
+  # ---- 值班：午间 + 夜间连续值守，次日必须排「值出」----
+
+  - code: DUTY_DIAG
+    name: 诊断值班
+    kind: night
+    start: "12:00"
+    end: "08:00+1"
+    is_night: true
+    weight: 3.0
+    color: F8CBAD
+    follow_shift: POST_DUTY
+
+  - code: DUTY_CT
+    name: CT值班
+    kind: night
+    start: "12:00"
+    end: "08:00+1"
+    is_night: true
+    weight: 3.0
+    color: F8CBAD
+    follow_shift: POST_DUTY
+
+  - code: DUTY_DR
+    name: DR值班
+    kind: night
+    start: "12:00"
+    end: "08:00+1"
+    is_night: true
+    weight: 3.0
+    color: F8CBAD
+    follow_shift: POST_DUTY
+
+  # ---- 值出（下夜班）与休息 ----
+
+  - code: POST_DUTY
+    name: 值出
+    kind: post_night
+    weight: 1.0
+    color: E7E6E6
+
+  # 注意：YAML 1.1 会把裸写的 OFF 解析成布尔值 false，
+  # 因此班次代码建议统一加引号。
+  - code: "OFF"
+    name: 休
+    kind: off
+    weight: 0.0
+    color: F2F2F2
+
+  - code: ROTATED
+    name: 调至介入导管室
+    kind: other
+    weight: 1.0
+    color: E7E6E6

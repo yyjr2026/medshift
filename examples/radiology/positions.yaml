@@ -1,0 +1,83 @@
+# 岗位需求：每个岗位每天需要几个人、需要什么技能。
+# daily_need 是校验岗位配额的依据。
+positions:
+  # ---- 诊断组：每日 6 个岗位 ----
+  - id: CT_DIAG
+    name: CT诊断
+    shift_code: CT_DIAG
+    daily_need: 2
+    required_skills: [CT_DIAG]
+    group: diagnosis
+  - id: DR_DIAG
+    name: DR诊断
+    shift_code: DR_DIAG
+    daily_need: 1
+    required_skills: [DR_DIAG]
+    group: diagnosis
+  - id: MR_DIAG
+    name: MR诊断
+    shift_code: MR_DIAG
+    daily_need: 1
+    required_skills: [MR_DIAG]
+    group: diagnosis
+  - id: REVIEW_CT
+    name: 审CT
+    shift_code: REVIEW_CT
+    daily_need: 1
+    required_skills: [REVIEW]
+    group: diagnosis
+  - id: DUTY_DIAG
+    name: 诊断值班
+    shift_code: DUTY_DIAG
+    daily_need: 1
+    required_skills: [CT_DIAG]
+    group: diagnosis
+    priority: 10
+
+  # ---- 技术组：每日 7 个岗位 ----
+  - id: CT1_SCAN
+    name: CT1扫描
+    shift_code: CT1_SCAN
+    daily_need: 1
+    required_skills: [CT_SCAN]
+    group: technician
+  - id: CT2_SCAN
+    name: CT2扫描
+    shift_code: CT2_SCAN
+    daily_need: 1
+    required_skills: [CT_SCAN]
+    group: technician
+  - id: MR_SCAN
+    name: MR扫描
+    shift_code: MR_SCAN
+    daily_need: 1
+    required_skills: [MR_SCAN]
+    group: technician
+  - id: DR_RADIOGRAPH
+    name: DR投照
+    shift_code: DR_RADIOGRAPH
+    daily_need: 2
+    required_skills: [DR_SCAN]
+    group: technician
+  - id: DUTY_CT
+    name: CT值班
+    shift_code: DUTY_CT
+    daily_need: 1
+    required_skills: [CT_SCAN]
+    group: technician
+    priority: 10
+  - id: DUTY_DR
+    name: DR值班
+    shift_code: DUTY_DR
+    daily_need: 1
+    required_skills: [DR_SCAN]
+    group: technician
+    priority: 10
+
+  # ---- 护理／登记组：每日 1 个岗位 ----
+  - id: REGISTER
+    name: 登记
+    shift_code: REGISTER
+    daily_need: 1
+    required_skills: [REGISTER]
+    group: nursing

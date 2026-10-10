@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>medshift 排班器</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">medshift<span>排班器</span></div>
+  <div class="dept" id="dept-name">{{ dept_name }}</div>
+  <div class="spacer"></div>
+  <label class="file-pick">周文件
+    <select id="file-select"></select>
+  </label>
+  <button class="btn" id="btn-check">重新校验</button>
+  <button class="btn" id="btn-save">保存</button>
+  <button class="btn btn-primary" id="btn-export">导出 Excel</button>
+</header>
+
+<div class="statusbar" id="statusbar">
+  <span class="status-dot"></span>
+  <span id="status-text">加载中…</span>
+  <span class="dirty-flag" id="dirty-flag"></span>
+</div>
+
+<main class="layout">
+  <section class="board-wrap">
+    <div class="board-scroll">
+      <table class="board" id="board"></table>
+    </div>
+  </section>
+  <aside class="side">
+    <div class="tabs">
+      <button class="tab active" data-tab="issues">校验</button>
+      <button class="tab" data-tab="stats">统计</button>
+      <button class="tab" data-tab="shifts">班次表</button>
+    </div>
+    <div class="tab-body" id="tab-issues"></div>
+    <div class="tab-body hidden" id="tab-stats"></div>
+    <div class="tab-body hidden" id="tab-shifts"></div>
+  </aside>
+</main>
+
+<div class="mask" id="mask" hidden></div>
+<div class="picker" id="picker" hidden>
+  <div class="picker-title" id="picker-title"></div>
+  <div class="picker-list" id="picker-list"></div>
+  <div class="picker-foot"><button class="btn btn-ghost" id="picker-cancel">取消</button></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

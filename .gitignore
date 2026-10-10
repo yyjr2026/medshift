@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# 工具
+.ruff_cache/
+.mypy_cache/
+
+# PyInstaller：根目录自动生成的 spec 不入库（packaging/medshift.spec 是手写的，保留）
+/*.spec
+
+# 运行时产物
+out/
+*.xlsx
+!examples/**/*.xlsx
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 真实科室数据一律不入库
+private/
+*.local.yaml

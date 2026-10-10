@@ -1,0 +1,20 @@
+# 排班规则。v0.1 生效的是硬约束部分（max_off_per_day）；
+# 其余字段供 v0.2 求解器使用，先按实际管理口径填写。
+max_off_per_day:
+  diagnosis: 3
+  technician: 4
+  nursing: 1
+
+min_night_eligible:
+  diagnosis: 6
+  technician: 8
+
+max_night_per_month: 6
+min_rest_gap_h: 12
+max_consecutive_work_days: 6
+night_balance_weight: 10
+holiday_weight: 2
+
+rotation:
+  technician: weekly
+  attach_students: true
