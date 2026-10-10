@@ -29,7 +29,7 @@ from .models import (
 from .scheduler import Scheduler, StaffStat
 from .validator import Severity, ValidationReport, Validator, Violation
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",

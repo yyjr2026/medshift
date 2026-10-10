@@ -15,6 +15,7 @@
   <label class="file-pick">周文件
     <select id="file-select"></select>
   </label>
+  <button class="btn btn-solve" id="btn-solve">一键排一周</button>
   <button class="btn" id="btn-check">重新校验</button>
   <button class="btn" id="btn-save">保存</button>
   <button class="btn btn-primary" id="btn-export">导出 Excel</button>
@@ -48,10 +49,125 @@
 <div class="picker" id="picker" hidden>
   <div class="picker-title" id="picker-title"></div>
   <div class="picker-list" id="picker-list"></div>
-  <div class="picker-foot"><button class="btn btn-ghost" id="picker-cancel">取消</button></div>
+
+  <form class="shift-add" id="shift-add-form" hidden>
+    <div class="sa-head">新增班次（将写入 shifts.yaml）</div>
+    <div class="sa-row">
+      <label for="sa-name">名称 <span class="req">*</span></label>
+      <input id="sa-name" type="text" maxlength="20" placeholder="如：核医学扫描" required>
+    </div>
+    <div class="sa-row">
+      <label for="sa-kind">类别</label>
+      <select id="sa-kind"></select>
+    </div>
+    <div class="sa-row sa-times">
+      <label for="sa-start">时间</label>
+      <div class="sa-time-inputs">
+        <input id="sa-start" type="text" placeholder="08:00">
+        <span>—</span>
+        <input id="sa-end" type="text" placeholder="17:30">
+        <span class="sa-hint">跨夜写 +1</span>
+      </div>
+    </div>
+    <div class="sa-row">
+      <label for="sa-weight">权重</label>
+      <input id="sa-weight" type="number" step="0.1" min="0" value="1.0">
+    </div>
+    <div class="sa-error" id="sa-error" hidden></div>
+    <div class="sa-actions">
+      <button type="button" class="btn btn-ghost" id="sa-cancel">取消</button>
+      <button type="submit" class="btn btn-primary" id="sa-submit">确认新增</button>
+    </div>
+  </form>
+
+  <div class="picker-foot" id="picker-foot">
+    <button class="btn btn-ghost" id="picker-add">+ 新增班次</button>
+    <button class="btn btn-ghost" id="picker-cancel">取消</button>
+  </div>
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<div class="mask" id="solve-mask" hidden></div>
+<div class="solve-panel" id="solve-panel" hidden>
+  <div class="sa-head">一键排一周（自动求解）</div>
+  <div class="solve-body">
+    <div class="solve-row">
+      <label for="solve-start">起始日期</label>
+      <input id="solve-start" type="date">
+    </div>
+    <div class="solve-row">
+      <label for="solve-days">排几天</label>
+      <input id="solve-days" type="number" min="1" max="31" value="7">
+    </div>
+    <div class="solve-row">
+      <label for="solve-lock">保留改动</label>
+      <input id="solve-lock" type="checkbox">
+      <span class="solve-hint">勾选后，界面上已手工调整的格子会被锁定，求解时不动它们</span>
+    </div>
+    <div class="solve-hint solve-desc">
+      求解器会按各岗位的每日需求排班：护士每天保证一个登记与一个正班，
+      DR 投照每天 2 名技师、CT2 每天 2 名技师；诊断组人力富余时补排
+      MR 审／DR 审。每人尽量休两天，人手不够时至少休一天。
+    </div>
+    <div class="solve-progress" id="solve-progress" hidden>
+      <span class="solve-spinner"></span>
+      <span id="solve-progress-text">正在求解，请稍候…</span>
+    </div>
+    <div class="sa-error" id="solve-error" hidden></div>
+  </div>
+  <div class="sa-actions">
+    <button type="button" class="btn btn-ghost" id="solve-cancel">取消</button>
+    <button type="button" class="btn btn-primary" id="solve-run">开始求解</button>
+  </div>
+</div>
+
+<div class="mask" id="staff-add-mask" hidden></div>
+<form class="staff-add" id="staff-add-form" hidden>
+  <div class="sa-head">新增人员（将写入 staff.yaml）</div>
+  <div class="sa-row">
+    <label for="sf-name">姓名 <span class="req">*</span></label>
+    <input id="sf-name" type="text" maxlength="20" placeholder="如：张三" required>
+  </div>
+  <div class="sa-row">
+    <label for="sf-group">组别</label>
+    <select id="sf-group"></select>
+  </div>
+  <div class="sa-row">
+    <label for="sf-id">编号</label>
+    <input id="sf-id" type="text" maxlength="16" placeholder="留空自动生成，如 D11">
+  </div>
+  <div class="sa-row">
+    <label for="sf-title">职称</label>
+    <input id="sf-title" type="text" maxlength="20" placeholder="如：主治医师 / 主管技师">
+  </div>
+  <div class="sa-row">
+    <label for="sf-status">在岗状态</label>
+    <select id="sf-status"></select>
+  </div>
+  <div class="sa-row sf-skills-row">
+    <label>技能</label>
+    <div class="sf-skills" id="sf-skills"></div>
+  </div>
+  <div class="sa-row">
+    <label for="sf-supervisor">带教老师</label>
+    <select id="sf-supervisor"></select>
+  </div>
+  <div class="sa-row">
+    <label for="sf-note">备注</label>
+    <input id="sf-note" type="text" maxlength="40" placeholder="选填">
+  </div>
+  <div class="sa-row sf-check">
+    <label for="sf-night">参与夜班轮值</label>
+    <input id="sf-night" type="checkbox">
+  </div>
+  <div class="sa-hint sf-foot-hint">带教老师非空时视为进修／实习人员，不单独占岗。</div>
+  <div class="sa-error" id="sf-error" hidden></div>
+  <div class="sa-actions">
+    <button type="button" class="btn btn-ghost" id="sf-cancel">取消</button>
+    <button type="submit" class="btn btn-primary" id="sf-submit">确认新增</button>
+  </div>
+</form>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

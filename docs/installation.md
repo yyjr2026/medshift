@@ -63,7 +63,7 @@ python --version          # 需 >= 3.10
 ### 方式 A：从 GitHub 克隆（首次使用者推荐）
 
 ```bash
-git clone https://github.com/<your-org>/medshift.git
+git clone https://github.com/yyjr2026/medshift.git
 cd medshift
 ```
 
@@ -122,7 +122,7 @@ pip install -e ".[dev]"
 不想管虚拟环境、只想随时敲 `medshift` 命令：
 
 ```bash
-pipx install "medshift[dev] @ git+https://github.com/<your-org>/medshift.git"
+pipx install "medshift[dev] @ git+https://github.com/yyjr2026/medshift.git"
 ```
 
 > 该方式安装的是快照，不随源码更新；需要"改代码立即生效"仍请用方式 A/B。
@@ -232,8 +232,9 @@ $env:PYTHONIOENCODING="utf-8"     # PowerShell
 做了处理（只认 `true/false`），按项目模板写无需担心；若自己另写 YAML，
 给 `OFF` 加引号写成 `"OFF"` 亦可。
 
-**Q4：需要安装 OR-Tools 吗？**
-v0.1 不需要。等 v0.2 自动求解功能时再装：`pip install -e ".[solver]"`。
+**Q4：需要单独安装 OR-Tools 吗？**
+不需要。OR-Tools 是 medshift 的核心依赖，`pip install -e ".[dev]"` 时会自动装好。
+若只想要最小运行时，也可 `pip install ortools` 单独补齐。
 
 **Q5：怎么卸载？**
 退出虚拟环境后直接删除 `.venv/` 目录即可，不留任何系统残留。

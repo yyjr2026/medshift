@@ -9,6 +9,7 @@
 """
 
 import datetime as dt
+import re
 import tempfile
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 from ..errors import MedShiftError
 from ..exporters import read_assignments, write_assignments
-from ..models import Assignment
+from ..models import Assignment, Shift, ShiftKind, Staff, StaffGroup, StaffStatus
 from ..scheduler import Scheduler
 
 GROUP_LABELS = {
@@ -26,7 +27,40 @@ GROUP_LABELS = {
     "other": "其他",
 }
 GROUP_ORDER = ["diagnosis", "technician", "nursing", "other"]
+
+# 在岗状态的中文名，用于新增人员表单与列表标签
+STATUS_LABELS = {
+    "active": "在岗",
+    "rotated": "派驻他科",
+    "leave": "长期假",
+    "training": "外出规培",
+}
 WEEKDAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+# 班次类别的中文名，用于前端下拉与错误提示
+SHIFT_KIND_LABELS = {
+    "day": "出勤（正班）",
+    "night": "值班（昼夜连续）",
+    "evening": "中晚班",
+    "backup": "备班",
+    "post_night": "值出（下夜班）",
+    "off": "休息",
+    "other": "其他",
+}
+
+# 新增班次时默认配色（按类别），与示例配置的色系保持一致
+DEFAULT_COLORS = {
+    "day": "DDEBF7",
+    "night": "F8CBAD",
+    "evening": "FFF2CC",
+    "backup": "EDEDED",
+    "post_night": "E7E6E6",
+    "off": "F2F2F2",
+    "other": "EDEDED",
+}
+
+CODE_PREFIX = "S_"  # 自动生成代码时使用的前缀，便于人肉识别是界面新建的
+_TIME_RE = re.compile(r"^\d{2}:\d{2}(\+1)?$")
 
 
 def create_app(
@@ -147,6 +181,175 @@ def create_app(
             "warnings": [one(v) for v in report.warnings],
         }
 
+    # ---------------------- 班次写入（shifts.yaml） ----------------------
+
+    shifts_file = config_path / "shifts.yaml"
+
+    def _next_shift_code(existing: set[str]) -> str:
+        """自动生成一个未被占用的班次代码，如 S_1 / S_2。"""
+        index = 1
+        while f"{CODE_PREFIX}{index}" in existing:
+            index += 1
+        return f"{CODE_PREFIX}{index}"
+
+    def _render_shift_block(shift: Shift) -> str:
+        """把一个 Shift 渲染成与现有文件风格一致的 YAML 块（2 空格缩进）。"""
+        lines = [f"  - code: {shift.code}", f"    name: {shift.name}",
+                 f"    kind: {shift.kind.value}"]
+        if shift.start:
+            lines.append(f'    start: "{shift.start}"')
+        if shift.end:
+            lines.append(f'    end: "{shift.end}"')
+        if shift.is_night:
+            lines.append("    is_night: true")
+        lines.append(f"    weight: {shift.weight:g}")
+        if shift.color:
+            lines.append(f"    color: {shift.color}")
+        if shift.follow_shift:
+            lines.append(f"    follow_shift: {shift.follow_shift}")
+        return "\n".join(lines) + "\n"
+
+    def _append_shift_to_yaml(shift: Shift) -> None:
+        """把新班次**追加**到 shifts.yaml 末尾。
+
+        刻意采用「读原文 → 行级追加 → 写回」，而不是 yaml.safe_load +
+        yaml.dump 全量重写：后者会丢掉文件里的全部注释、打乱字段顺序，
+        让配置文件变得难以人工维护。
+        """
+        text = shifts_file.read_text(encoding="utf-8") if shifts_file.exists() else ""
+
+        stripped = text.strip()
+        if not stripped:
+            # 空文件或原本不存在：补上顶层键
+            text = "shifts:\n"
+        elif "shifts:" not in text:
+            # 裸列表写法（无顶层键），直接续写
+            text = text.rstrip("\n") + "\n"
+        else:
+            # 与上一条班次之间保留一个空行，保持文件可读
+            text = text.rstrip("\n") + "\n\n"
+
+        shifts_file.write_text(text + _render_shift_block(shift), encoding="utf-8")
+
+    # ---------------------- 人员写入（staff.yaml） ----------------------
+
+    staff_file = config_path / "staff.yaml"
+    _ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,16}$")
+
+    def _next_staff_id(group: str, existing: set[str]) -> str:
+        """按组别生成一个未被占用的人员编号，如 D26 / T21 / N04。"""
+        prefix = {"diagnosis": "D", "technician": "T", "nursing": "N"}.get(group, "X")
+        index = 1
+        while f"{prefix}{index:02d}" in existing:
+            index += 1
+        return f"{prefix}{index:02d}"
+
+    def _render_staff_block(person: Staff) -> str:
+        """把一名人员渲染成与现有 staff.yaml 风格一致的 YAML 块。"""
+        lines = [
+            f"  - id: {person.id}",
+            f"    name: {person.name}",
+            f"    group: {person.group.value}",
+        ]
+        if person.title:
+            lines.append(f"    title: {person.title}")
+        if person.skills:
+            lines.append("    skills: [" + ", ".join(person.skills) + "]")
+        lines.append(f"    night_eligible: {'true' if person.night_eligible else 'false'}")
+        if person.rotation_offset:
+            lines.append(f"    rotation_offset: {person.rotation_offset}")
+        lines.append(f"    status: {person.status.value}")
+        if person.supervisor_id:
+            lines.append(f"    supervisor_id: {person.supervisor_id}")
+        if person.note:
+            lines.append(f"    note: {person.note}")
+        return "\n".join(lines) + "\n"
+
+    def _append_staff_to_yaml(person: Staff) -> None:
+        """把新人员追加到 staff.yaml 末尾（保留文件原有注释与排版）。"""
+        text = staff_file.read_text(encoding="utf-8") if staff_file.exists() else ""
+
+        stripped = text.strip()
+        if not stripped:
+            text = "staff:\n"
+        elif "staff:" not in text:
+            text = text.rstrip("\n") + "\n"
+        else:
+            text = text.rstrip("\n") + "\n\n"
+
+        staff_file.write_text(text + _render_staff_block(person), encoding="utf-8")
+
+    def _remove_staff_from_yaml(staff_id: str) -> tuple[bool, list[str]]:
+        """从 staff.yaml 中删掉指定 id 的条目，并解除他人的挂靠。
+
+        以「``- id:`` 开头」为一个条目的边界：找到该行后，一直删到下一个
+        同级条目的起始行（或文件末尾）。
+
+        同时把其它条目里指向 ``staff_id`` 的 ``supervisor_id`` 行删掉——
+        否则被删人员若曾是带教老师，留下的 ``supervisor_id`` 会让配置校验
+        失败（"引用了不存在的带教老师"）。
+
+        Returns:
+            ``(是否删除了条目, 被解除挂靠的人员 id 列表)``
+        """
+        if not staff_file.exists():
+            return False, []
+
+        lines = staff_file.read_text(encoding="utf-8").splitlines(keepends=True)
+
+        # 1) 找出所有条目的起始行，便于界定删除范围
+        starts = [
+            i for i, line in enumerate(lines)
+            if re.match(r"^\s*-\s*id:\s*", line)
+        ]
+
+        target = None
+        for i, line in enumerate(lines):
+            m = re.match(r"^\s*-\s*id:\s*['\"]?([^'\"\s]+)['\"]?\s*$", line)
+            if m and m.group(1) == staff_id:
+                target = i
+                break
+        if target is None:
+            return False, []
+
+        # 2) 条目范围：从 target 到下一个条目起始行（或文件尾）
+        end = len(lines)
+        for s in starts:
+            if s > target:
+                end = s
+                break
+        while end < len(lines) and not lines[end].strip():
+            end += 1
+        if target > 0 and not lines[target - 1].strip():
+            target -= 1
+
+        del lines[target:end]
+
+        # 3) 清掉指向该人员的 supervisor_id 行（记录受影响的人）
+        kept: list[str] = []
+        released: list[str] = []
+        current_id: str | None = None
+        for line in lines:
+            m_id = re.match(r"^\s*-\s*id:\s*['\"]?([^'\"\s]+)['\"]?\s*$", line)
+            if m_id:
+                current_id = m_id.group(1)
+                kept.append(line)
+                continue
+            m_sup = re.match(
+                r"^\s*supervisor_id:\s*['\"]?([^'\"\s]+)['\"]?\s*$", line
+            )
+            if m_sup and m_sup.group(1) == staff_id:
+                if current_id:
+                    released.append(current_id)
+                continue  # 丢弃这一行
+            kept.append(line)
+
+        content = "".join(kept)
+        if content and not content.endswith("\n"):
+            content += "\n"
+        staff_file.write_text(content, encoding="utf-8")
+        return True, released
+
     def _config_payload() -> dict:
         present = {s.group.value for s in dept.staff}
         return {
@@ -158,6 +361,17 @@ def create_app(
                 for g in GROUP_ORDER
                 if g in present
             ],
+            "shift_kinds": [
+                {"value": k, "label": SHIFT_KIND_LABELS[k]}
+                for k in SHIFT_KIND_LABELS
+            ],
+            "staff_groups": [
+                {"value": g, "label": GROUP_LABELS.get(g, g)} for g in GROUP_ORDER
+            ],
+            "staff_statuses": [
+                {"value": s, "label": STATUS_LABELS[s]} for s in STATUS_LABELS
+            ],
+            "skill_options": sorted({sk for p in dept.positions for sk in p.required_skills}),
             "staff": [
                 {
                     "id": s.id,
@@ -276,6 +490,88 @@ def create_app(
             return jsonify({"error": f"排班数据格式错误：{exc}"}), 400
         return jsonify(_dump_report(scheduler.check(items)))
 
+    @app.post("/api/solve")
+    def api_solve():
+        """一键自动排班（CP-SAT）。
+
+        请求体字段：
+
+        * ``week_start``（可选）—— 起始日期 YYYY-MM-DD；留空取请求体
+          ``days[0]``，再留空取今天所在周的周一
+        * ``days``（可选，默认 7）
+        * ``time_limit_s``（可选）—— 求解时限秒数
+        * ``fixed``（可选）—— 需要锁定的格子列表（``staff_id`` / ``date`` /
+          ``shift_code``），求解时保持不动
+
+        成功返回 ``{ok, status, assignments, off_by_staff, stats, warnings}``；
+        无解时 ``ok=False`` 并带上 ``warnings`` 说明原因，HTTP 仍是 200，
+        便于前端把原因展示给用户。
+        """
+        from ..solver import Solver as _Solver, SolverUnavailableError
+
+        body = request.get_json(silent=True) or {}
+
+        raw_start = str(body.get("week_start") or "").strip()
+        if not raw_start:
+            days_body = body.get("days") or []
+            raw_start = str(days_body[0]) if days_body else ""
+        if raw_start:
+            try:
+                start = dt.date.fromisoformat(raw_start)
+            except ValueError:
+                return jsonify({"error": f"日期格式不对：{raw_start}"}), 400
+        else:
+            today = dt.date.today()
+            start = today - dt.timedelta(days=today.weekday())
+
+        try:
+            days = int(body.get("days_count") or len(body.get("days") or []) or 7)
+        except (TypeError, ValueError):
+            days = 7
+        days = max(1, min(days, 31))
+
+        limit = body.get("time_limit_s")
+        try:
+            limit_int = int(limit) if limit not in (None, "") else None
+        except (TypeError, ValueError):
+            limit_int = None
+
+        # 锁定格子
+        fixed: list[Assignment] = []
+        for item in body.get("fixed") or []:
+            try:
+                fixed.append(
+                    Assignment(
+                        staff_id=str(item["staff_id"]),
+                        date=dt.date.fromisoformat(str(item["date"])),
+                        shift_code=str(item["shift_code"]),
+                    )
+                )
+            except (KeyError, ValueError, TypeError):
+                return jsonify({"error": "固定格子数据格式错误"}), 400
+
+        try:
+            result = _Solver(dept).solve_week(
+                start, days=days, time_limit_s=limit_int, fixed=fixed or None
+            )
+        except SolverUnavailableError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except MedShiftError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        payload = {
+            "ok": result.ok,
+            "status": result.status,
+            "objective": result.objective,
+            "week_start": start.isoformat(),
+            "days": days,
+            "off_by_staff": result.off_by_staff,
+            "stats": result.stats,
+            "warnings": result.warnings,
+            "assignments": [_serialize(a) for a in result.assignments],
+        }
+        return jsonify(payload)
+
     @app.post("/api/save")
     def api_save():
         """把当前排班写回 CSV。"""
@@ -310,6 +606,261 @@ def create_app(
 
         return jsonify(
             {"ok": True, "name": out_name, "url": f"/api/download/{out_name}"}
+        )
+
+    @app.post("/api/shift")
+    def api_add_shift():
+        """新增一个班次定义，写入 shifts.yaml。
+
+        请求体字段：
+        * ``name``（必填）—— 中文显示名，如「核医学扫描」
+        * ``kind``（可选，默认 day）—— 见 SHIFT_KIND_LABELS
+        * ``code``（可选）—— 留空自动生成 S_n
+        * ``start`` / ``end``（可选）—— HH:MM，跨夜用 HH:MM+1
+        * ``weight``（可选，默认 1.0）
+        * ``is_night``（可选）—— 留空时按 kind 推断
+
+        成功返回新班次的完整定义，供前端直接填入格子。
+        """
+        body = request.get_json(silent=True) or {}
+
+        name = str(body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "班次名称不能为空"}), 400
+        if len(name) > 20:
+            return jsonify({"error": "班次名称请控制在 20 个字符以内"}), 400
+
+        kind_raw = str(body.get("kind") or ShiftKind.DAY.value).strip()
+        try:
+            kind = ShiftKind(kind_raw)
+        except ValueError:
+            return jsonify({"error": f"未知的班次类别：{kind_raw}"}), 400
+
+        code = str(body.get("code") or "").strip()
+        existing_codes = {s.code for s in dept.shifts}
+        if code:
+            if not re.fullmatch(r"[A-Za-z0-9_\-]{1,32}", code):
+                return jsonify(
+                    {"error": "班次代码只能用字母、数字、下划线或短横线"}
+                ), 400
+            if code in existing_codes:
+                return jsonify({"error": f"班次代码已存在：{code}"}), 400
+        else:
+            code = _next_shift_code(existing_codes)
+
+        if any(s.name == name for s in dept.shifts):
+            return jsonify({"error": f"已存在同名班次：{name}"}), 400
+
+        start = str(body.get("start") or "").strip() or None
+        end = str(body.get("end") or "").strip() or None
+        for label, value in (("开始时间", start), ("结束时间", end)):
+            if value and not _TIME_RE.match(value):
+                return jsonify(
+                    {"error": f"{label}格式应为 HH:MM（跨夜写 +1，如 08:00+1）"}
+                ), 400
+
+        if "is_night" in body and body.get("is_night") is not None:
+            is_night = bool(body.get("is_night"))
+        else:
+            is_night = kind is ShiftKind.NIGHT
+
+        try:
+            weight = float(body.get("weight", 1.0))
+        except (TypeError, ValueError):
+            return jsonify({"error": "权重必须是数字"}), 400
+
+        color = str(body.get("color") or "").strip().lstrip("#").upper() or None
+        if color and not re.fullmatch(r"[0-9A-F]{6}", color):
+            color = None
+        if color is None:
+            color = DEFAULT_COLORS.get(kind.value)
+
+        try:
+            shift = Shift(
+                code=code,
+                name=name,
+                kind=kind,
+                start=start,
+                end=end,
+                is_night=is_night,
+                weight=weight,
+                color=color,
+            )
+        except MedShiftError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:  # pydantic ValidationError
+            return jsonify({"error": f"班次定义不合法：{exc}"}), 400
+
+        # 写回 YAML 并同步内存配置，保证后续校验/统计立即可用
+        try:
+            _append_shift_to_yaml(shift)
+        except OSError as exc:
+            return jsonify({"error": f"写入 shifts.yaml 失败：{exc}"}), 500
+
+        dept.shifts.append(shift)
+        dept.rebuild_index()
+
+        return jsonify(
+            {
+                "ok": True,
+                "shift": {
+                    "code": shift.code,
+                    "name": shift.name,
+                    "kind": shift.kind.value,
+                    "start": shift.start or "",
+                    "end": shift.end or "",
+                    "is_night": shift.is_night,
+                    "weight": shift.weight,
+                    "color": shift.color or "",
+                    "follow_shift": shift.follow_shift or "",
+                },
+                "file": shifts_file.name,
+            }
+        )
+
+    @app.post("/api/staff")
+    def api_add_staff():
+        """新增一名人员，写入 staff.yaml。
+
+        请求体字段：
+        * ``name``（必填）—— 姓名
+        * ``group``（可选，默认 other）—— diagnosis / technician / nursing / other
+        * ``id``（可选）—— 留空按组别自动生成 D01 / T01 / N01 …
+        * ``title``（可选）—— 职称
+        * ``skills``（可选）—— 技能标签列表
+        * ``night_eligible``（可选，默认 false）
+        * ``status``（可选，默认 active）
+        * ``supervisor_id``（可选）—— 带教老师 id，填了即为进修／实习人员
+        * ``note``（可选）
+        """
+        body = request.get_json(silent=True) or {}
+
+        name = str(body.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "姓名不能为空"}), 400
+        if len(name) > 20:
+            return jsonify({"error": "姓名请控制在 20 个字符以内"}), 400
+
+        group_raw = str(body.get("group") or StaffGroup.OTHER.value).strip()
+        try:
+            group = StaffGroup(group_raw)
+        except ValueError:
+            return jsonify({"error": f"未知的人员组别：{group_raw}"}), 400
+
+        existing_ids = {s.id for s in dept.staff}
+        staff_id = str(body.get("id") or "").strip()
+        if staff_id:
+            if not _ID_RE.match(staff_id):
+                return jsonify(
+                    {"error": "人员编号只能用字母、数字、下划线或短横线（≤16 位）"}
+                ), 400
+            if staff_id in existing_ids:
+                return jsonify({"error": f"人员编号已存在：{staff_id}"}), 400
+        else:
+            staff_id = _next_staff_id(group.value, existing_ids)
+
+        if any(s.name == name for s in dept.staff):
+            return jsonify({"error": f"已存在同名人员：{name}"}), 400
+
+        title = str(body.get("title") or "").strip() or None
+
+        skills_raw = body.get("skills") or []
+        if isinstance(skills_raw, str):
+            skills_raw = [p.strip() for p in skills_raw.split(",") if p.strip()]
+        if not isinstance(skills_raw, list):
+            return jsonify({"error": "技能标签应为数组或逗号分隔的字符串"}), 400
+        skills = [str(s).strip() for s in skills_raw if str(s).strip()]
+
+        status_raw = str(body.get("status") or StaffStatus.ACTIVE.value).strip()
+        try:
+            status = StaffStatus(status_raw)
+        except ValueError:
+            return jsonify({"error": f"未知的在岗状态：{status_raw}"}), 400
+
+        supervisor_id = str(body.get("supervisor_id") or "").strip() or None
+        if supervisor_id and supervisor_id not in existing_ids:
+            return jsonify({"error": f"带教老师不存在：{supervisor_id}"}), 400
+
+        note = str(body.get("note") or "").strip() or None
+
+        try:
+            person = Staff(
+                id=staff_id,
+                name=name,
+                group=group,
+                title=title,
+                skills=skills,
+                night_eligible=bool(body.get("night_eligible", False)),
+                status=status,
+                supervisor_id=supervisor_id,
+                note=note,
+            )
+        except Exception as exc:  # pydantic ValidationError
+            return jsonify({"error": f"人员信息不合法：{exc}"}), 400
+
+        try:
+            _append_staff_to_yaml(person)
+        except OSError as exc:
+            return jsonify({"error": f"写入 staff.yaml 失败：{exc}"}), 500
+
+        dept.staff.append(person)
+        dept.rebuild_index()
+
+        return jsonify(
+            {
+                "ok": True,
+                "staff": {
+                    "id": person.id,
+                    "name": person.name,
+                    "group": person.group.value,
+                    "title": person.title or "",
+                    "skills": list(person.skills),
+                    "night_eligible": person.night_eligible,
+                    "status": person.status.value,
+                    "supervisor_id": person.supervisor_id or "",
+                    "is_trainee": person.is_trainee,
+                    "rosterable": person.is_rosterable,
+                    "can_hold_position": person.can_hold_position,
+                    "note": person.note or "",
+                },
+                "file": staff_file.name,
+            }
+        )
+
+    @app.delete("/api/staff/<staff_id>")
+    def api_delete_staff(staff_id: str):
+        """删除一名人员，并清理引用。
+
+        * 从 staff.yaml 移除该条目；
+        * 若有进修／实习人员挂在其名下，一并解除挂靠（置空 supervisor_id），
+          避免留下悬空的 ``supervisor_id``；
+        * 该人员已有的排班记录由前端在删除后同步清掉，点「保存」时随
+          CSV 一起落盘——后端不在这里直接改排班文件，保持与其它编辑一致的
+          心智：**排班改动统一由「保存」写入**。
+        """
+        person = dept.staff_by_id(staff_id)
+        if person is None:
+            return jsonify({"error": f"人员不存在：{staff_id}"}), 404
+
+        try:
+            removed, released = _remove_staff_from_yaml(staff_id)
+        except OSError as exc:
+            return jsonify({"error": f"写入 staff.yaml 失败：{exc}"}), 500
+
+        if not removed:
+            return jsonify({"error": f"staff.yaml 中未找到人员：{staff_id}"}), 404
+
+        dept.staff = [s for s in dept.staff if s.id != staff_id]
+        dept.rebuild_index()
+
+        return jsonify(
+            {
+                "ok": True,
+                "deleted": staff_id,
+                "deleted_name": person.name,
+                "released_trainees": released,
+                "file": staff_file.name,
+            }
         )
 
     @app.get("/api/download/<path:name>")

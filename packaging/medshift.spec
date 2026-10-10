@@ -38,12 +38,25 @@ a = Analysis(  # noqa: F821
         "itsdangerous",
         "markupsafe",
         "blinker",
+        # OR-Tools CP-SAT 求解器（v0.2 自动排班）。ortools 的动态加载路径
+        # 比较隐蔽，必须显式列出核心模块，否则冻结后 `medshift solve` 报 ImportError。
+        "ortools",
+        "ortools.sat",
+        "ortools.sat.python",
+        "ortools.sat.python.cp_model",
+        "ortools.sat.python.cp_model_helper",
+        "ortools.constraint_solver",
+        "ortools.constraint_solver.pywrapcp",
+        "ortools.util",
+        "ortools.util.python",
+        "ortools.util.python.helpers",
     ],
-    hookspath=[],
+    hookspath=[str(ROOT / "packaging" / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
-    # 排除明显用不到的重型库，压缩体积
-    excludes=["tkinter", "pytest", "numpy", "pandas", "matplotlib", "IPython"],
+    # 排除明显用不到的重型库，压缩体积。
+    # 注意：**不能**排除 numpy / pandas —— ortools 依赖它们。
+    excludes=["tkinter", "pytest", "matplotlib", "IPython", "scipy", "sklearn"],
     noarchive=False,
 )
 

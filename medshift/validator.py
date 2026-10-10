@@ -15,7 +15,7 @@ SKILL_MISMATCH           人员技能不满足岗位要求
 GROUP_MISMATCH           人员在非本组岗位（提醒级）
 NIGHT_NOT_ELIGIBLE       不参与夜班的人被排了夜班（提醒级）
 POSITION_UNDERSTAFFED    某岗位某天人数不足
-OFF_QUOTA_EXCEEDED       某组某天休息人数超出上限
+OFF_QUOTA_EXCEEDED       某组某天休息人数超出期望上限（提醒级）
 NIGHT_NOT_FOLLOWED       值班次日没有排联动班次（值出）
 ======================  ==========================================
 """
@@ -260,6 +260,10 @@ class Validator:
             for position in self.config.positions:
                 if position.daily_need <= 0:
                     continue
+                if position.is_optional:
+                    # 可选岗位（如诊断组审片班）人力不足时允许空缺，
+                    # 不计入硬性配额检查。
+                    continue
                 have = filled.get((current, position.id), 0)
                 if have < position.daily_need:
                     report.violations.append(
@@ -302,6 +306,10 @@ class Validator:
                             f"{day} {group} 组休息 {count} 人，"
                             f"超出每日上限 {quota} 人"
                         ),
+                        # 提醒级：`max_off_per_day` 是「期望」而非红线。
+                        # 人手紧张时休不满是正常的，自动求解器也按软偏好处理，
+                        # 因此不该把它当作硬错误（否则求解结果会被自己判为不通过）。
+                        severity=Severity.WARNING,
                         date=day,
                     )
                 )

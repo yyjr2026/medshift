@@ -13,8 +13,8 @@ from medshift.models import ShiftKind, StaffGroup
 
 def test_load_example_config(config):
     assert config.name
-    assert len(config.staff) == 25
-    assert len(config.assignable_staff()) == 23
+    assert len(config.staff) == 26
+    assert len(config.assignable_staff()) == 24
     assert len(config.trainees()) == 1
     assert config.validate_references() == []
 
@@ -39,7 +39,7 @@ def test_shift_follow_relation(config):
 def test_groups_are_complete(config):
     assert len(config.members_of(StaffGroup.DIAGNOSIS)) == 9
     assert len(config.members_of(StaffGroup.TECHNICIAN)) == 12
-    assert len(config.members_of(StaffGroup.NURSING)) == 2
+    assert len(config.members_of(StaffGroup.NURSING)) == 3
 
 
 def test_missing_required_file(tmp_path: Path, example_dir: Path):

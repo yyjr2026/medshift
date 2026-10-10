@@ -5,7 +5,7 @@
 ;         pyinstaller packaging\medshift.spec --noconfirm --clean
 ;
 ; 编译：ISCC.exe packaging\medshift.iss
-; 产物：dist\medshift-0.1.0-setup.exe
+; 产物：dist\medshift-0.2.0-setup.exe
 ;
 ; 说明：Inno Setup 需另行安装（非 Python 依赖）：
 ;         https://jrsoftware.org/isdl.php
@@ -17,9 +17,9 @@
 ; ============================================================================
 
 #define MyAppName "medshift"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "medshift contributors"
-#define MyAppURL "https://github.com/your-org/medshift"
+#define MyAppURL "https://github.com/yyjr2026/medshift"
 #define MyAppExeName "medshift.exe"
 
 [Setup]

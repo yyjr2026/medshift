@@ -97,7 +97,7 @@ positions:
 ## rules.yaml
 
 ```yaml
-max_off_per_day:        # 【硬约束】每组每天最多几人休息
+max_off_per_day:        # 每组每天**期望**最多几人休息（软偏好，求解器尽量满足）
   diagnosis: 3
   technician: 4
   nursing: 1
@@ -106,18 +106,41 @@ min_night_eligible:     # 各组至少几人参与夜班（人力评估用）
   diagnosis: 6
   technician: 8
 
-max_night_per_month: 6        # 【v0.2】每人每月夜班上限
-min_rest_gap_h: 12            # 【v0.2】两次值班最小间隔（小时）
-max_consecutive_work_days: 6  # 【v0.2】连续出勤上限
-night_balance_weight: 10      # 【v0.2】夜班均衡权重
-holiday_weight: 2             # 【v0.2】节假日值班加权倍数
+max_night_per_month: 6        # 每人每月夜班上限
+min_rest_gap_h: 12            # 两次值班最小间隔（小时）
+max_consecutive_work_days: 6  # 【硬约束】连续出勤上限
+night_balance_weight: 10      # 夜班均衡权重
+holiday_weight: 2             # 节假日值班加权倍数
+
+# ---- v0.2 求解器参数 ----
+target_off_per_week: 2        # 每人每周期望休息天数（首要目标：尽量休两天）
+min_off_per_week: 1           # 人力紧张时允许的最低每周休息天数（至少休一天）
+solve_time_limit_s: 30        # 求解时限（秒）
 
 rotation:
-  technician: weekly          # 【v0.2】技术组按周轮岗
-  attach_students: true       # 【v0.2】进修生随带教同格显示
+  technician: weekly          # 技术组按周轮岗
+  attach_students: true       # 进修生随带教同格显示
 ```
 
-> v0.1 只有 `max_off_per_day` 参与校验，其余字段先按管理口径填好，供求解器使用。
+### 关于 `max_off_per_day`（重要）
+
+这个字段**不是硬约束**，而是求解器的**软偏好**。
+
+原因：真实的排班需求是「**尽量休两天，人手不够就休一天**」。当某组一天的
+「日岗位需求 + 当班值班 + 昨日值班的今日值出」已经占满该组人力时，
+如果还把「每天最多几人休息」当硬性红线，模型会立刻判为无解——
+而实际上这种排法是存在的，只是没法照顾到休息上限。
+
+因此求解器对休息人数的处理分两层：
+
+1. **硬上界**：当天该组休息人数 ≤ 组内人数 − 当天该组岗位总需求
+   （保证岗位一定排得出来）；超出这个上界会直接无解，此时会提示
+   「人力不足」。
+2. **软偏好**：正常情况下尽量不超过 `max_off_per_day`，夜间／高负荷
+   岗位会按 `target_off_per_week` → `min_off_per_week` 的优先级照顾。
+
+> 命令行 `medshift validate` 仍会用 `max_off_per_day` 对**手工排好的**
+> 排班做提醒，作为管理口径的参考。
 
 ## calendar.yaml
 

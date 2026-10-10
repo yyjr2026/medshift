@@ -32,4 +32,20 @@ class Position(BaseModel):
         default=0,
         description="岗位优先级，数值越大越先被满足（求解器用）",
     )
+    requirement: str = Field(
+        default="required",
+        description=(
+            "required（硬性岗位，必须排满）或 optional（人力富余才排，"
+            "如诊断组的审片班）。校验器只对 required 岗位做配额检查。"
+        ),
+    )
     note: str | None = None
+
+    @property
+    def is_optional(self) -> bool:
+        """是否为可选岗位（人力不足时允许空缺）。"""
+        return self.requirement == "optional"
+
+    @property
+    def is_required(self) -> bool:
+        return not self.is_optional

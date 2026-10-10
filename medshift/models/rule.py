@@ -47,6 +47,16 @@ class Rules(BaseModel):
         description="轮岗配置，如 {technician: weekly, attach_students: true}",
     )
 
+    # ---- v0.2 求解器参数 ----
+
+    target_off_per_week: int = Field(
+        default=2, description="每人每周期望休息天数（首要目标）"
+    )
+    min_off_per_week: int = Field(
+        default=1, description="人力紧张时允许的最低每周休息天数（次要目标）"
+    )
+    solve_time_limit_s: int = Field(default=30, description="求解时限（秒）")
+
     def off_quota(self, group: str) -> int | None:
         """取某组别的每日休息上限。"""
         return self.max_off_per_day.get(group)

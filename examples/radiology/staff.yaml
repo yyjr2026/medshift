@@ -135,7 +135,7 @@ staff:
     skills: [CT_SCAN, MR_SCAN, DR_SCAN]
     night_eligible: false
 
-  # ---- 护理／登记组 ----
+  # ---- 护理／登记组（3 人：每天 1 登记 + 1 正班，第 3 人轮休）----
   - id: N01
     name: 护士1
     group: nursing
@@ -146,6 +146,12 @@ staff:
     name: 护士2
     group: nursing
     title: 护师
+    skills: [REGISTER]
+    night_eligible: false
+  - id: N03
+    name: 护士3
+    group: nursing
+    title: 护士
     skills: [REGISTER]
     night_eligible: false
 

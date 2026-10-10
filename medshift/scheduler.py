@@ -3,8 +3,8 @@
 把「加载配置 → 读排班数据 → 校验 → 导出」这条链路收在一个类里，
 CLI 与第三方代码都通过它调用 medshift。
 
-v0.1 只提供**校验与导出**；自动求解（``solve``）在 v0.2 实现，
-当前会明确抛出 NotSupportedError，而不是静默返回空结果。
+v0.2 起 ``solve`` 接入 OR-Tools CP-SAT 自动排班；未安装 ortools 时
+会抛出明确的 SolverUnavailableError，而不是静默返回空结果。
 """
 
 from __future__ import annotations
@@ -66,16 +66,24 @@ class Scheduler:
         self,
         week_start: dt.date,
         *,
-        time_limit_s: int = 30,
+        days: int = 7,
+        time_limit_s: int | None = None,
         seed: int = 0,
-    ) -> list[Assignment]:
-        """自动生成一周排班。
+        fixed: list[Assignment] | None = None,
+    ):
+        """自动生成一周排班（CP-SAT）。
 
-        v0.2 将接入 OR-Tools CP-SAT 求解器；当前版本尚未实现。
+        返回 :class:`~medshift.solver.SolveResult`；若模型无解，
+        ``result.ok`` 为 False，``result.warnings`` 里给出原因。
         """
-        raise NotSupportedError(
-            "自动求解将在 v0.2 提供。v0.1 请先用 Excel/CSV 手工排班，"
-            "再用 `medshift check` 校验、`medshift export` 出表。"
+        from .solver import Solver as _Solver
+
+        return _Solver(self.config).solve_week(
+            week_start,
+            days=days,
+            time_limit_s=time_limit_s,
+            seed=seed,
+            fixed=fixed,
         )
 
     # ------------------------------------------------------------------

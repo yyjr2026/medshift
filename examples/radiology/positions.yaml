@@ -1,7 +1,10 @@
 # 岗位需求：每个岗位每天需要几个人、需要什么技能。
-# daily_need 是校验岗位配额的依据。
+# daily_need 是校验岗位配额的依据，也是求解器的硬目标。
+#
+# priority 越大越优先满足；requirement: optional 的岗位属于「有人力富余才排」，
+# 求解器会尽量安排，但不会因此让正式岗位缺人，校验时也不计入配额检查。
 positions:
-  # ---- 诊断组：每日 6 个岗位 ----
+  # ---- 诊断组 ----
   - id: CT_DIAG
     name: CT诊断
     shift_code: CT_DIAG
@@ -34,7 +37,25 @@ positions:
     group: diagnosis
     priority: 10
 
-  # ---- 技术组：每日 7 个岗位 ----
+  # ---- 诊断组审片班：人力够就排，不够可省（可选岗位）----
+  - id: MR_AUDIT
+    name: MR审
+    shift_code: MR_AUDIT
+    daily_need: 1
+    required_skills: [MR_DIAG]
+    group: diagnosis
+    priority: 1
+    requirement: optional
+  - id: DR_AUDIT
+    name: DR审
+    shift_code: DR_AUDIT
+    daily_need: 1
+    required_skills: [DR_DIAG]
+    group: diagnosis
+    priority: 1
+    requirement: optional
+
+  # ---- 技术组 ----
   - id: CT1_SCAN
     name: CT1扫描
     shift_code: CT1_SCAN
@@ -44,7 +65,7 @@ positions:
   - id: CT2_SCAN
     name: CT2扫描
     shift_code: CT2_SCAN
-    daily_need: 1
+    daily_need: 2
     required_skills: [CT_SCAN]
     group: technician
   - id: MR_SCAN
@@ -74,10 +95,16 @@ positions:
     group: technician
     priority: 10
 
-  # ---- 护理／登记组：每日 1 个岗位 ----
+  # ---- 护理／登记组：每天 1 个登记 + 1 个正班 ----
   - id: REGISTER
     name: 登记
     shift_code: REGISTER
+    daily_need: 1
+    required_skills: [REGISTER]
+    group: nursing
+  - id: NURSE_DAY
+    name: 护理正班
+    shift_code: DAY
     daily_need: 1
     required_skills: [REGISTER]
     group: nursing

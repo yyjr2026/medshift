@@ -118,7 +118,36 @@ tr.group-row td {
   background: #eaf0fb; color: #2c4a86; font-weight: 600;
   font-size: 12.5px; text-align: left; padding: 5px 10px;
 }
+tr.group-row td.group-cell {
+  display: flex; align-items: center; gap: 10px;
+}
+.group-label { flex: 1 1 auto; }
 tr.inactive .col-name { color: #98a2b3; }
+
+/* 小号按钮：班组行的「新增人员」与人员行的「删除」 */
+.btn-mini {
+  font: inherit; font-size: 11.5px; line-height: 1;
+  padding: 4px 8px; border-radius: 5px; cursor: pointer;
+  border: 1px solid transparent; background: transparent;
+  color: inherit; transition: .1s;
+}
+.btn-add-person {
+  border-color: #b6c8e8; background: #fff; color: #2c4a86;
+  font-weight: 500; flex: 0 0 auto;
+}
+.btn-add-person:hover { background: #2c4a86; color: #fff; border-color: #2c4a86; }
+
+table.board td.col-name { position: relative; }
+.btn-del-person {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; padding: 0; line-height: 16px;
+  font-size: 14px; color: #b91c1c; border-radius: 4px;
+  opacity: 0; visibility: hidden;
+}
+tr:hover > td.col-name .btn-del-person { opacity: 1; visibility: visible; }
+.btn-del-person:hover { background: #fee2e2; border-color: #fca5a5; }
+
+tr.empty-group-row td.empty-cell { padding: 12px; font-size: 12.5px; }
 
 td.cell { cursor: pointer; height: 31px; font-size: 12.5px; transition: .1s; }
 td.cell:hover { outline: 2px solid var(--primary); outline-offset: -2px; }
@@ -185,8 +214,8 @@ table.mini td.hot { color: var(--error); font-weight: 600; }
   box-shadow: 0 12px 32px rgba(15, 23, 42, .22);
   display: flex; flex-direction: column;
 }
-.picker-title { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid var(--border); }
-.picker-list { flex: 1 1 auto; overflow: auto; padding: 8px; }
+.picker-title { padding: 12px 16px; font-weight: 600; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.picker-list { flex: 1 1 auto; overflow: auto; padding: 8px; min-height: 0; }
 .pick-group { font-size: 11.5px; color: var(--muted); padding: 8px 8px 4px; font-weight: 600; }
 .pick-item {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -200,7 +229,121 @@ table.mini td.hot { color: var(--error); font-weight: 600; }
 .pick-item.clear { justify-content: center; color: var(--muted); }
 .pi-name { font-size: 13px; }
 .pi-code { font-size: 11px; color: var(--muted); font-family: Consolas, monospace; }
-.picker-foot { padding: 10px 16px; text-align: right; border-top: 1px solid var(--border); }
+.picker-foot {
+  padding: 10px 16px; text-align: right; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; gap: 8px;
+}
+
+/* ---------------- 弹窗内的「新增班次」表单 ---------------- */
+.shift-add { padding: 12px 16px 14px; border-top: 1px solid var(--border); background: #fbfcfe; }
+.sa-head { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.sa-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sa-row > label { flex: 0 0 62px; font-size: 12.5px; color: var(--muted); text-align: right; }
+.sa-row .req { color: var(--error); }
+.sa-row input, .sa-row select {
+  font: inherit; flex: 1 1 auto; min-width: 0;
+  padding: 6px 9px; border: 1px solid var(--border);
+  border-radius: 6px; background: #fff; color: var(--text);
+}
+.sa-row input:focus, .sa-row select:focus {
+  outline: none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.sa-time-inputs { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.sa-time-inputs input { flex: 1 1 0; min-width: 0; }
+.sa-time-inputs > span { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+.sa-time-inputs .sa-hint {
+  font-size: 11px; color: var(--muted); background: #eef1f6;
+  padding: 2px 6px; border-radius: 4px;
+}
+.sa-error {
+  font-size: 12.5px; color: var(--error); background: var(--error-bg);
+  border-left: 3px solid var(--error); padding: 6px 9px;
+  border-radius: 4px; margin: 8px 0 4px;
+}
+.sa-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+
+/* ---------------- 「新增人员」独立模态 ---------------- */
+.staff-add {
+  position: fixed; z-index: 60;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 420px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px); overflow-y: auto;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, .28);
+  padding: 16px 18px 14px;
+}
+.staff-add .sa-head { font-size: 14px; }
+.staff-add .sa-row > label { flex: 0 0 76px; }
+.sf-skills {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: wrap; gap: 4px 8px;
+  max-height: 96px; overflow-y: auto;
+  padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 6px; background: #fff;
+}
+.sf-skill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; color: var(--text); cursor: pointer;
+  white-space: nowrap;
+}
+.sf-skill input { margin: 0; }
+.sa-row.sf-check > label { order: 1; text-align: left; }
+.sa-row.sf-check > input { flex: 0 0 auto; order: 2; margin-left: auto; }
+.sf-foot-hint {
+  display: block; font-size: 11.5px; color: var(--muted);
+  margin: 2px 0 0 86px;
+}
+
+/* ---------------- 一键排一周面板 ---------------- */
+.btn-solve {
+  background: #ecfdf5; border-color: #a7f3d0; color: #047857;
+}
+.btn-solve:hover { background: #d1fae5; border-color: #6ee7b7; }
+
+.solve-panel {
+  position: fixed; z-index: 60;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 460px; max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px); overflow-y: auto;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, .28);
+  padding: 16px 18px 14px;
+}
+.solve-panel .sa-head { font-size: 14px; }
+.solve-body { padding: 4px 0 2px; }
+.solve-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px; font-size: 13px;
+}
+.solve-row > label { flex: 0 0 76px; color: var(--muted); }
+.solve-row > input[type="date"],
+.solve-row > input[type="number"] {
+  flex: 0 0 auto;
+  padding: 5px 8px; font-size: 13px; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  background: #fff;
+}
+.solve-row > input[type="number"] { width: 72px; }
+.solve-row > input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+.solve-hint { font-size: 11.5px; color: var(--muted); }
+.solve-desc {
+  display: block; line-height: 1.6; margin: 2px 0 10px;
+  padding: 8px 10px; background: #f8fafc;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.solve-progress {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--muted); margin-bottom: 8px;
+}
+.solve-spinner {
+  width: 14px; height: 14px; flex: 0 0 auto;
+  border: 2px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: solve-spin .7s linear infinite;
+}
+@keyframes solve-spin { to { transform: rotate(360deg); } }
+.solve-panel .sa-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.solve-panel .sa-actions .btn[disabled] { opacity: .55; cursor: not-allowed; }
 
 /* ---------------- 提示 ---------------- */
 .toast {

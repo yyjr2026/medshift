@@ -1,0 +1,20 @@
+# 统一换行符：仓库内一律存 LF，避免不同系统协作时整文件 diff
+* text=auto eol=lf
+
+# 明确文本类型
+*.py    text diff=python
+*.md    text
+*.yaml  text
+*.yml   text
+*.toml  text
+*.json  text
+*.css   text
+*.js    text
+*.html  text
+*.csv   text
+
+# 二进制
+*.png   binary
+*.ico   binary
+*.xlsx  binary
+*.exe   binary

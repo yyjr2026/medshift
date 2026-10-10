@@ -4,6 +4,7 @@
 
     medshift init my-dept
     medshift validate --config my-dept
+    medshift solve --config my-dept --week-start 2026-10-12
     medshift check --config my-dept --assignments my-dept/assignments/2026-W42.csv
     medshift export --config my-dept --assignments ... --out 2026-W42.xlsx
     medshift stats --config my-dept --assignments ...
@@ -27,7 +28,7 @@ from .scheduler import Scheduler
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="medshift — 医技科室排班器（v0.1：配置校验 + 排班检查 + Excel 导出）",
+    help="medshift — 医技科室排班器（v0.2：配置校验 + 自动排班 + 排班检查 + Excel 导出）",
 )
 
 def _resource_path(*parts: str) -> Path:
@@ -102,6 +103,100 @@ def validate(
         f"  班次 {len(dept.shifts)} 个｜岗位 {len(dept.positions)} 个"
         f"｜节假日 {len(dept.calendar.holidays)} 天"
     )
+
+
+@app.command()
+def solve(
+    config: Path = typer.Option(Path("."), "--config", "-c", help="配置目录"),
+    week_start: Optional[str] = typer.Option(
+        None, "--week-start", help="排班起始日期 YYYY-MM-DD（默认下周一）"
+    ),
+    days: int = typer.Option(7, "--days", help="排多少天"),
+    out: Optional[Path] = typer.Option(
+        None, "--out", "-o", help="输出 CSV 路径（默认写入 assignments/ 下按 ISO 周命名）"
+    ),
+    time_limit: Optional[int] = typer.Option(
+        None, "--time-limit", help="求解时限（秒），留空用 rules.yaml 里的值"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="只求解不落盘，打印结果与统计"
+    ),
+) -> None:
+    """自动排班（CP-SAT 求解一周）。"""
+    try:
+        from .solver import SolverUnavailableError, solve_week as run_solve
+    except ImportError:  # pragma: no cover - 兜底
+        _fail("求解器模块不可用")
+        return
+
+    try:
+        dept = load_config(config)
+    except ConfigError as exc:
+        _fail("配置存在问题：")
+        for problem in exc.problems:
+            typer.echo(f"  · {problem}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    # 起始日期：默认取「下一个周一」
+    if week_start:
+        try:
+            start = dt.date.fromisoformat(week_start)
+        except ValueError:
+            _fail(f"日期格式不对：{week_start}（应为 YYYY-MM-DD）")
+            return
+    else:
+        today = dt.date.today()
+        start = today + dt.timedelta(days=(7 - today.weekday()) % 7 or 7)
+
+    typer.echo(
+        f"正在求解 {start.isoformat()} 起 {days} 天的排班"
+        f"（{dept.name}，{len(dept.assignable_staff())} 名可排班人员）…"
+    )
+
+    try:
+        result = run_solve(dept, start, days=days, time_limit_s=time_limit)
+    except SolverUnavailableError as exc:
+        _fail(str(exc))
+        return
+
+    if not result.ok:
+        _fail(f"求解失败：{result.status}")
+        for warning in result.warnings:
+            typer.echo(f"  · {warning}", err=True)
+        raise typer.Exit(code=1)
+
+    _ok(f"求解成功：{result.status}（目标值 {result.objective:.0f}）")
+    typer.echo(f"  排班记录 {len(result.assignments)} 条")
+
+    offs = list(result.off_by_staff.values())
+    if offs:
+        typer.echo(
+            f"  每人休息天数：最少 {min(offs)} 天，最多 {max(offs)} 天"
+        )
+    optional = result.stats.get("optional_filled") or {}
+    if optional:
+        detail = "、".join(f"{k} {v} 天" for k, v in optional.items())
+        typer.echo(f"  可选岗位：{detail}")
+
+    if dry_run:
+        typer.echo("（--dry-run：结果未写入文件）")
+        return
+
+    if out is None:
+        iso = start.isocalendar()
+        out = Path(config) / "assignments" / f"{iso[0]}-W{iso[1]:02d}.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        scheduler = Scheduler.from_config_dir(config)
+        scheduler.save_assignments(result.assignments, out)
+    except MedShiftError as exc:
+        _fail(str(exc))
+        return
+
+    _ok(f"已写入：{out}")
+    typer.echo(f"下一步：`medshift check -c {config} -a {out}` 复核，"
+               f"或 `medshift gui -c {config}` 在图形界面里微调")
 
 
 @app.command()
